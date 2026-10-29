@@ -7,10 +7,11 @@ defmodule NervesSurfaceRtCell.Touch do
   a tap is sent when a finger touches the screen, at its position as a
   fraction of the screen's width and height.
 
-  The touchscreen is the input device whose name ends in "Touchscreen",
-  as hid-multitouch names it, or the `:touch_device` path in the
-  application environment. If it's not there yet, it's looked for again
-  every 2 seconds.
+  The touchscreen is the first input device with multitouch positions
+  (`ABS_MT_POSITION_X`), or the `:touch_device` path in the application
+  environment. On the Surface RT it's named "hid-over-i2c 03EB:8207"
+  (Atmel). The Type Cover's touchpad has no absolute axes. If the
+  touchscreen isn't there yet, it's looked for again every 2 seconds.
 
   If taps land in the wrong place, set `:touch` in the application
   environment, e.g. `config :nerves_surface_rt_cell, touch: [invert_y: true]`.
@@ -98,24 +99,18 @@ defmodule NervesSurfaceRtCell.Touch do
       Enum.flat_map(InputEvent.enumerate(), fn {path, info} ->
         abs = Keyword.get(info.report_info, :ev_abs, [])
 
-        case {axis(abs, :abs_x), axis(abs, :abs_y)} do
-          {%{} = x, %{} = y} -> [{path, info.name, {x, y}}]
+        case {axis(abs, :abs_x), axis(abs, :abs_y), axis(abs, :abs_mt_position_x)} do
+          {%{} = x, %{} = y, %{}} -> [{path, {x, y}}]
           _ -> []
         end
       end)
 
     configured = Application.get_env(:nerves_surface_rt_cell, :touch_device)
 
-    found =
-      if configured do
-        Enum.find(devices, fn {path, _name, _ranges} -> path == configured end)
-      else
-        Enum.find(devices, fn {_path, name, _ranges} -> String.ends_with?(name, "Touchscreen") end)
-      end
-
-    case found do
-      {path, _name, ranges} -> {path, ranges}
-      nil -> nil
+    if configured do
+      Enum.find(devices, fn {path, _ranges} -> path == configured end)
+    else
+      List.first(devices)
     end
   end
 
