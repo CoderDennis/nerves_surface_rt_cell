@@ -100,7 +100,7 @@ mappings in `config/target.exs`:
 
 ```elixir
 config :nerves_surface_rt_cell,
-  orientation: %{y_neg: 0, y_pos: 180, x_neg: 90, x_pos: 270},
+  orientation: %{y_neg: 0, y_pos: 180, x_neg: 270, x_pos: 90},
   touch: [swap_xy: false, invert_x: false, invert_y: false]
 ```
 

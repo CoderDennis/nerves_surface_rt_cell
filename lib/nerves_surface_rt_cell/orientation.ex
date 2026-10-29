@@ -23,7 +23,7 @@ defmodule NervesSurfaceRtCell.Orientation do
   alias NervesSurfaceRtCell.Display
 
   @poll_ms 500
-  @default_map %{y_neg: 0, y_pos: 180, x_neg: 90, x_pos: 270}
+  @default_map %{y_neg: 0, y_pos: 180, x_neg: 270, x_pos: 90}
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
