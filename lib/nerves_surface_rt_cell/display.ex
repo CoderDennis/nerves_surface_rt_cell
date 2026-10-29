@@ -124,7 +124,8 @@ defmodule NervesSurfaceRtCell.Display do
   defp handle_tap(:picker, point, state) do
     case Picker.hit(state.rule, state.size, point) do
       {:rule, rule} ->
-        redraw(%{state | rule: rule})
+        draw(state, Picker.update(state.rule, rule, state.size))
+        %{state | rule: rule}
 
       :start ->
         %{state | screen: :running}

@@ -51,6 +51,46 @@ defmodule NervesSurfaceRtCell.UITest do
     end
   end
 
+  # Draw ops into a file the size of a framebuffer and return its pixels
+  defp draw(path, ops_list, rotation) do
+    geometry = geometry()
+    File.write!(path, :binary.copy(<<0>>, geometry.stride * geometry.height))
+    {:ok, fd} = :file.open(path, [:read, :write, :raw, :binary])
+
+    for ops <- ops_list do
+      :ok = :file.pwrite(fd, NervesSurfaceRtCell.Render.writes(ops, rotation, geometry))
+    end
+
+    :ok = :file.close(fd)
+    File.read!(path)
+  end
+
+  @tag :tmp_dir
+  test "picker update draws the same pixels as a full render", %{tmp_dir: dir} do
+    for {rotation, size} <- [{0, @landscape}, {90, @portrait}],
+        {old, new} <- [{30, 31}, {30, 90}, {255, 0}, {110, 110}] do
+      updated =
+        draw(
+          Path.join(dir, "updated"),
+          [Picker.render(old, size, nil), Picker.update(old, new, size)],
+          rotation
+        )
+
+      full = draw(Path.join(dir, "full"), [Picker.render(new, size, nil)], rotation)
+      assert updated == full, "#{old} -> #{new} at #{rotation}"
+    end
+  end
+
+  test "picker update is much smaller than a full render" do
+    full = NervesSurfaceRtCell.Render.writes(Picker.render(30, @landscape, nil), 0, geometry())
+    update = NervesSurfaceRtCell.Render.writes(Picker.update(30, 31, @landscape), 0, geometry())
+
+    assert IO.iodata_length(Enum.map(update, &elem(&1, 1))) * 5 <
+             IO.iodata_length(Enum.map(full, &elem(&1, 1)))
+  end
+
+  defp geometry(), do: %{width: 1366, height: 768, stride: 1366 * 4, bpp: 32}
+
   test "slots are in Wolfram's order, 111 first" do
     assert [{7, _}, {6, _} | _] = Picker.layout(@landscape).slots
   end

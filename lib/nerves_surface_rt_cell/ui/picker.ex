@@ -32,40 +32,76 @@ defmodule NervesSurfaceRtCell.UI.Picker do
         ]
   def render(rule, {w, h} = size, battery) do
     layout = layout(size)
-    {nx, ny, nw, nh} = layout.number
-    label = "RULE #{rule}"
 
     [{:rect, 0, 0, w, h, UI.black()}] ++
       UI.bar(w, "CELLULAR AUTOMATA") ++
       UI.battery(w, battery) ++
       UI.button(layout.minus, "-", scale: 6) ++
       UI.button(layout.plus, "+", scale: 6) ++
-      [
-        {:text, nx + div(nw - Font.text_width(label, @number_scale), 2),
-         ny + div(nh - Font.text_height(@number_scale), 2), @number_scale, label, UI.white()}
-      ] ++
-      Enum.flat_map(layout.slots, fn {index, rect} -> slot(rule, index, rect) end) ++
-      Enum.flat_map(layout.presets, fn {n, rect} ->
-        UI.button(rect, "#{n}", scale: 4, selected: n == rule)
+      number(rule, layout) ++
+      Enum.flat_map(layout.slots, fn {index, rect} ->
+        neighborhood(index, rect) ++ output(rule, index, rect)
       end) ++
+      Enum.flat_map(layout.presets, &preset(rule, &1)) ++
       UI.button(layout.start, "START", scale: 6, selected: true)
   end
 
-  # A neighborhood's three cells, with its output cell centered below them
-  defp slot(rule, index, {x, y, w, _h}) do
-    row_width = 3 * @cell + 2 * @cell_gap
-    left = x + div(w - row_width, 2)
-    top = y + 8
+  @doc """
+  Draw only what changes between rule `old` and rule `new`: the number,
+  the output cells that flip and the presets that change highlight
+  """
+  @spec update(Automaton.rule(), Automaton.rule(), {pos_integer(), pos_integer()}) :: [
+          NervesSurfaceRtCell.Render.op()
+        ]
+  def update(old, new, size) do
+    layout = layout(size)
+    {x, y, w, h} = layout.number
 
-    neighborhood =
-      for bit <- 0..2 do
-        value = Bitwise.band(Bitwise.bsr(index, 2 - bit), 1)
-        cell({left + bit * (@cell + @cell_gap), top, @cell, @cell}, value)
-      end
+    outputs =
+      for {index, rect} <- layout.slots,
+          Bitwise.band(Bitwise.bsr(Bitwise.bxor(old, new), index), 1) == 1,
+          do: output(new, index, rect)
 
-    output = Bitwise.band(Bitwise.bsr(rule, index), 1)
-    out_rect = {left + @cell + @cell_gap, top + @cell + 20, @cell, @cell}
-    List.flatten(neighborhood) ++ cell(out_rect, output, UI.accent())
+    presets =
+      for {n, _rect} = preset <- layout.presets, n == old != (n == new), do: preset(new, preset)
+
+    [{:rect, x, y, w, h, UI.black()}] ++
+      number(new, layout) ++ List.flatten(outputs) ++ List.flatten(presets)
+  end
+
+  defp number(rule, layout) do
+    {x, y, w, h} = layout.number
+    label = "RULE #{rule}"
+
+    [
+      {:text, x + div(w - Font.text_width(label, @number_scale), 2),
+       y + div(h - Font.text_height(@number_scale), 2), @number_scale, label, UI.white()}
+    ]
+  end
+
+  defp preset(rule, {n, rect}), do: UI.button(rect, "#{n}", scale: 4, selected: n == rule)
+
+  # A neighborhood's three cells, centered at the top of its slot
+  defp neighborhood(index, rect) do
+    {left, top} = slot_origin(rect)
+
+    Enum.flat_map(0..2, fn bit ->
+      value = Bitwise.band(Bitwise.bsr(index, 2 - bit), 1)
+      cell({left + bit * (@cell + @cell_gap), top, @cell, @cell}, value)
+    end)
+  end
+
+  # The output cell below the middle of the neighborhood, cleared first so
+  # that a 1 can turn into an outlined 0
+  defp output(rule, index, rect) do
+    {left, top} = slot_origin(rect)
+    {x, y, w, h} = out_rect = {left + @cell + @cell_gap, top + @cell + 20, @cell, @cell}
+    value = Bitwise.band(Bitwise.bsr(rule, index), 1)
+    [{:rect, x, y, w, h, UI.black()} | cell(out_rect, value, UI.accent())]
+  end
+
+  defp slot_origin({x, y, w, _h}) do
+    {x + div(w - (3 * @cell + 2 * @cell_gap), 2), y + 8}
   end
 
   defp cell(rect, value, outline_color \\ UI.grey())
