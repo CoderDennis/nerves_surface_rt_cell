@@ -1,32 +1,30 @@
 defmodule NervesSurfaceRtCell.History do
   @moduledoc """
-  The automaton's recent rows and which of them are on screen
+  The automaton's rows and which of them are on screen
 
-  The automaton always runs at one width, wide enough for landscape, and
-  keeps enough rows to fill the tallest view. A view (landscape or
-  portrait) shows rows from `top` on, cropped to the middle columns that
-  fit. Rotating the screen only changes the view, so the pattern stays.
+  The automaton always runs at one width, wide enough for landscape. A
+  view (landscape or portrait) shows rows from `top` on, cropped to the
+  middle columns that fit. Rotating the screen only changes the view, so
+  the pattern stays.
 
-  Once the rows reach the bottom of the view, it scrolls up a quarter of
-  the view at a time.
+  The automaton stops once its rows reach the bottom of the view.
   """
 
   alias NervesSurfaceRtCell.Automaton
 
-  defstruct rows: [], length: 0, capacity: 1, top: 0
+  defstruct rows: [], length: 0, top: 0
 
   @type t() :: %__MODULE__{
           rows: [Automaton.row()],
           length: non_neg_integer(),
-          capacity: pos_integer(),
           top: non_neg_integer()
         }
 
   @doc """
-  A history that starts with `row` and keeps up to `capacity` rows
+  A history that starts with `row`
   """
-  @spec new(Automaton.row(), pos_integer()) :: t()
-  def new(row, capacity), do: %__MODULE__{rows: [row], length: 1, capacity: capacity}
+  @spec new(Automaton.row()) :: t()
+  def new(row), do: %__MODULE__{rows: [row], length: 1}
 
   @doc """
   The newest row
@@ -35,23 +33,25 @@ defmodule NervesSurfaceRtCell.History do
   def last(history), do: List.last(history.rows)
 
   @doc """
-  Add a row, for a view `view_rows` tall
-
-  Returns `{:append, index}` when the new row fits below the others (at
-  `index` in the view), or `:redraw` when the view scrolled.
+  Whether the rows fill a view `view_rows` tall
   """
-  @spec push(t(), Automaton.row(), pos_integer()) :: {t(), {:append, non_neg_integer()} | :redraw}
+  @spec full?(t(), pos_integer()) :: boolean()
+  def full?(history, view_rows), do: history.length - history.top >= view_rows
+
+  @doc """
+  Add a row below the others, for a view `view_rows` tall
+
+  Returns `{history, index}` with the new row's index in the view, or
+  `:full` if the view has no room for it.
+  """
+  @spec push(t(), Automaton.row(), pos_integer()) :: {t(), non_neg_integer()} | :full
   def push(history, row, view_rows) do
-    history = %{history | rows: history.rows ++ [row], length: history.length + 1}
-
-    {history, result} =
-      if history.length - history.top <= view_rows do
-        {history, {:append, history.length - 1 - history.top}}
-      else
-        {%{history | top: history.top + max(div(view_rows, 4), 1)}, :redraw}
-      end
-
-    {trim(history), result}
+    if full?(history, view_rows) do
+      :full
+    else
+      history = %{history | rows: history.rows ++ [row], length: history.length + 1}
+      {history, history.length - 1 - history.top}
+    end
   end
 
   @doc """
@@ -83,17 +83,4 @@ defmodule NervesSurfaceRtCell.History do
       _ -> row
     end
   end
-
-  defp trim(%{length: length, capacity: capacity} = history) when length > capacity do
-    drop = length - capacity
-
-    %{
-      history
-      | rows: Enum.drop(history.rows, drop),
-        length: capacity,
-        top: max(history.top - drop, 0)
-    }
-  end
-
-  defp trim(history), do: history
 end

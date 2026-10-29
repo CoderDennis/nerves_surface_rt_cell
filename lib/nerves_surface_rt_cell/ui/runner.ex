@@ -2,16 +2,17 @@ defmodule NervesSurfaceRtCell.UI.Runner do
   @moduledoc """
   The screen that runs an automaton
 
-  The top bar shows the rule and a Stop button, or Resume and New rule
-  while stopped. The rest of the screen is the automaton, one row per
-  generation, white cells on black.
+  The top bar shows the rule and a Stop button, Resume and New rule while
+  stopped, or only New rule once the automaton has filled the screen. The
+  rest of the screen is the automaton, one row per generation, white
+  cells on black.
   """
 
   alias NervesSurfaceRtCell.UI
 
   @cell 4
 
-  @type status() :: :running | :paused
+  @type status() :: :running | :paused | :finished
   @type action() :: :stop | :resume | :new_rule | nil
 
   @doc """
@@ -73,17 +74,6 @@ defmodule NervesSurfaceRtCell.UI.Runner do
   end
 
   @doc """
-  Clear the area below generation row `first`
-  """
-  @spec clear_below(non_neg_integer(), {pos_integer(), pos_integer()}) ::
-          [NervesSurfaceRtCell.Render.op()]
-  def clear_below(first, {w, h} = size) do
-    area = area(size)
-    y = area.y + first * area.cell
-    [{:rect, 0, y, w, h - y, UI.black()}]
-  end
-
-  @doc """
   What tapping `point` does
 
   Besides the buttons, tapping the automaton stops it, or resumes it while
@@ -99,6 +89,7 @@ defmodule NervesSurfaceRtCell.UI.Runner do
       y < UI.bar_height() -> nil
       status == :running -> :stop
       status == :paused -> :resume
+      status == :finished -> nil
     end
   end
 
@@ -106,6 +97,8 @@ defmodule NervesSurfaceRtCell.UI.Runner do
 
   defp buttons(:paused, w),
     do: UI.bar_buttons(w, [{:new_rule, label(:new_rule)}, {:resume, label(:resume)}])
+
+  defp buttons(:finished, w), do: UI.bar_buttons(w, [{:new_rule, label(:new_rule)}])
 
   defp label(:stop), do: "STOP"
   defp label(:resume), do: "RESUME"

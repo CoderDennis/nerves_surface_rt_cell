@@ -59,6 +59,7 @@ defmodule NervesSurfaceRtCell.UITest do
     assert Runner.hit(:running, @landscape, {600, 400}) == :stop
     assert Runner.hit(:paused, @landscape, {600, 400}) == :resume
     assert Runner.hit(:running, @landscape, {20, 20}) == nil
+    assert Runner.hit(:finished, @landscape, {600, 400}) == nil
   end
 
   test "orientation follows the dominant axis" do

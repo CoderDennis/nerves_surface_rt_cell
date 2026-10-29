@@ -5,10 +5,12 @@ defmodule NervesSurfaceRtCell.Display do
   Screens:
 
     * `:picker` - choose a rule (`NervesSurfaceRtCell.UI.Picker`)
-    * `:running` - the automaton grows one row per tick, and scrolls up a
-      quarter of the screen at a time once it reaches the bottom. Rotating
-      the screen keeps the pattern (see `NervesSurfaceRtCell.History`).
-    * `:paused` - stopped, with Resume and New rule buttons
+    * `:running` - the automaton grows one row per tick until it reaches
+      the bottom of the screen. Rotating the screen keeps the pattern (see
+      `NervesSurfaceRtCell.History`).
+    * `:paused` - stopped, by Stop or at the bottom of the screen. It has
+      Resume and New rule buttons, or only New rule while the screen is
+      full. Turning to portrait makes room to resume.
 
   `NervesSurfaceRtCell.Touch` sends taps and `NervesSurfaceRtCell.Orientation`
   sends rotations. The battery indicator is refreshed every 30 seconds.
@@ -100,7 +102,7 @@ defmodule NervesSurfaceRtCell.Display do
 
   @impl GenServer
   def handle_info(:tick, %{screen: :running} = state) do
-    {:noreply, state |> step() |> schedule_tick()}
+    {:noreply, step(state)}
   end
 
   def handle_info(:tick, state), do: {:noreply, state}
@@ -136,11 +138,9 @@ defmodule NervesSurfaceRtCell.Display do
   end
 
   defp handle_tap(screen, point, state) do
-    case Runner.hit(screen, state.size, point) do
+    case Runner.hit(status(screen, state), state.size, point) do
       :stop ->
-        state = %{state | screen: :paused}
-        draw(state, Runner.bar(:paused, state.rule, state.size, state.battery))
-        state
+        pause(state)
 
       :resume ->
         state = %{state | screen: :running}
@@ -155,32 +155,42 @@ defmodule NervesSurfaceRtCell.Display do
     end
   end
 
-  # Add the next generation below the others, or redraw if the view scrolled
+  # Add the next generation below the others, or stop at the bottom
   defp step(state) do
     area = Runner.area(state.size)
     next = Automaton.next(History.last(state.history), state.rule)
 
     case History.push(state.history, next, area.rows) do
-      {history, {:append, index}} ->
+      {history, index} ->
         row = History.row(history, index, area.columns)
         draw(state, Runner.rows_ops([row], index, state.size))
-        %{state | history: history}
+        schedule_tick(%{state | history: history})
 
-      {history, :redraw} ->
-        rows = History.visible(history, area.rows, area.columns)
-        ops = Runner.rows_ops(rows, 0, state.size) ++ Runner.clear_below(length(rows), state.size)
-        draw(state, ops)
-        %{state | history: history}
+      :full ->
+        pause(state)
     end
   end
 
-  # The automaton is as wide as the widest view and keeps as many rows as
-  # the tallest one, so it fits both landscape and portrait
+  defp pause(state) do
+    state = %{state | screen: :paused}
+    draw(state, Runner.bar(status(:paused, state), state.rule, state.size, state.battery))
+    state
+  end
+
+  # A stopped automaton that fills the screen can't resume
+  defp status(:paused, state) do
+    if History.full?(state.history, Runner.area(state.size).rows), do: :finished, else: :paused
+  end
+
+  defp status(screen, _state), do: screen
+
+  # The automaton is as wide as the widest view, so it fits both landscape
+  # and portrait
   defp restart_automaton(state) do
     landscape = Runner.area(Rotation.logical_size(0, state.physical))
     portrait = Runner.area(Rotation.logical_size(90, state.physical))
     first = Automaton.initial(max(landscape.columns, portrait.columns))
-    %{state | history: History.new(first, max(landscape.rows, portrait.rows))}
+    %{state | history: History.new(first)}
   end
 
   defp reframe(%{history: nil} = state), do: state
@@ -206,7 +216,8 @@ defmodule NervesSurfaceRtCell.Display do
   defp redraw(state) do
     area = Runner.area(state.size)
     rows = History.visible(state.history, area.rows, area.columns)
-    draw(state, Runner.render(state.screen, state.rule, rows, state.size, state.battery))
+    status = status(state.screen, state)
+    draw(state, Runner.render(status, state.rule, rows, state.size, state.battery))
     state
   end
 

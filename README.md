@@ -12,8 +12,8 @@ On the Surface RT it:
     cell below it; tap one to flip it) and presets for rules 30, 90, 110
     and 184
   * runs the rule from a single cell, white on black, one row per
-    generation. Once it reaches the bottom it scrolls up a quarter of the
-    screen at a time and keeps going.
+    generation, and stops when it reaches the bottom of the screen.
+    Turning to portrait keeps the pattern and makes room for more rows.
   * stops when you tap Stop (or the automaton), then resumes or goes back
     to the picker for a new rule
   * shows the battery level in the top right corner, with a `+` while
