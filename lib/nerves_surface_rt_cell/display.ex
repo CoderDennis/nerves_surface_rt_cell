@@ -6,7 +6,8 @@ defmodule NervesSurfaceRtCell.Display do
 
     * `:picker` - choose a rule (`NervesSurfaceRtCell.UI.Picker`)
     * `:running` - the automaton grows one row per tick, and scrolls up a
-      quarter of the screen at a time once it reaches the bottom
+      quarter of the screen at a time once it reaches the bottom. Rotating
+      the screen keeps the pattern (see `NervesSurfaceRtCell.History`).
     * `:paused` - stopped, with Resume and New rule buttons
 
   `NervesSurfaceRtCell.Touch` sends taps and `NervesSurfaceRtCell.Orientation`
@@ -19,6 +20,7 @@ defmodule NervesSurfaceRtCell.Display do
   alias NervesSurfaceRtCell.Automaton
   alias NervesSurfaceRtCell.Battery
   alias NervesSurfaceRtCell.Framebuffer
+  alias NervesSurfaceRtCell.History
   alias NervesSurfaceRtCell.Render
   alias NervesSurfaceRtCell.Rotation
   alias NervesSurfaceRtCell.UI
@@ -60,8 +62,7 @@ defmodule NervesSurfaceRtCell.Display do
             rotation: 0,
             screen: :picker,
             rule: @default_rule,
-            rows: [],
-            count: 0,
+            history: nil,
             battery: Battery.info(),
             timer: nil
           }
@@ -91,7 +92,7 @@ defmodule NervesSurfaceRtCell.Display do
     state =
       %{state | rotation: rotation}
       |> put_size()
-      |> restart_automaton()
+      |> reframe()
       |> redraw()
 
     {:noreply, state}
@@ -147,35 +148,45 @@ defmodule NervesSurfaceRtCell.Display do
         schedule_tick(state)
 
       :new_rule ->
-        redraw(%{state | screen: :picker, rows: [], count: 0})
+        redraw(%{state | screen: :picker, history: nil})
 
       nil ->
         state
     end
   end
 
-  # Add the next generation. Once the area is full, drop the oldest quarter
-  # and redraw what's left from the top.
+  # Add the next generation below the others, or redraw if the view scrolled
   defp step(state) do
     area = Runner.area(state.size)
-    next = Automaton.next(List.last(state.rows), state.rule)
+    next = Automaton.next(History.last(state.history), state.rule)
 
-    if state.count < area.rows do
-      draw(state, Runner.rows_ops([next], state.count, state.size))
-      %{state | rows: state.rows ++ [next], count: state.count + 1}
-    else
-      rows = Enum.drop(state.rows, max(div(area.rows, 4), 1)) ++ [next]
-      count = length(rows)
-      draw(state, Runner.rows_ops(rows, 0, state.size) ++ Runner.clear_below(count, state.size))
-      %{state | rows: rows, count: count}
+    case History.push(state.history, next, area.rows) do
+      {history, {:append, index}} ->
+        row = History.row(history, index, area.columns)
+        draw(state, Runner.rows_ops([row], index, state.size))
+        %{state | history: history}
+
+      {history, :redraw} ->
+        rows = History.visible(history, area.rows, area.columns)
+        ops = Runner.rows_ops(rows, 0, state.size) ++ Runner.clear_below(length(rows), state.size)
+        draw(state, ops)
+        %{state | history: history}
     end
   end
 
-  defp restart_automaton(%{screen: :picker} = state), do: state
-
+  # The automaton is as wide as the widest view and keeps as many rows as
+  # the tallest one, so it fits both landscape and portrait
   defp restart_automaton(state) do
-    first = Automaton.initial(Runner.area(state.size).columns)
-    %{state | rows: [first], count: 1}
+    landscape = Runner.area(Rotation.logical_size(0, state.physical))
+    portrait = Runner.area(Rotation.logical_size(90, state.physical))
+    first = Automaton.initial(max(landscape.columns, portrait.columns))
+    %{state | history: History.new(first, max(landscape.rows, portrait.rows))}
+  end
+
+  defp reframe(%{history: nil} = state), do: state
+
+  defp reframe(state) do
+    %{state | history: History.reframe(state.history, Runner.area(state.size).rows)}
   end
 
   defp schedule_tick(state) do
@@ -193,7 +204,9 @@ defmodule NervesSurfaceRtCell.Display do
   end
 
   defp redraw(state) do
-    draw(state, Runner.render(state.screen, state.rule, state.rows, state.size, state.battery))
+    area = Runner.area(state.size)
+    rows = History.visible(state.history, area.rows, area.columns)
+    draw(state, Runner.render(state.screen, state.rule, rows, state.size, state.battery))
     state
   end
 
