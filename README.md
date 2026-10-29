@@ -5,7 +5,8 @@ Surface RT (2012, NVIDIA Tegra 3) into a touchscreen viewer for Stephen
 Wolfram's elementary cellular automata, built on
 [nerves_system_surface_rt](https://github.com/CoderDennis/nerves_system_surface_rt).
 
-On the Surface RT it:
+The Surface boots to IEx on its screen. Type `start` to show the
+visualization, and `stop` to get the console back. Then it:
 
   * shows a rule picker: the rule number with − and + buttons, Wolfram's
     rule icon (the 8 neighborhoods from 111 to 000, each with its output
@@ -36,13 +37,17 @@ rotations is a matter of mapping rectangles.
 | `Rotation` | Logical (as you see the screen) ↔ framebuffer coordinates |
 | `Render` | Drawing operations → `{offset, bytes}` writes for `:file.pwrite/2` |
 | `Framebuffer` | Opens `/dev/fb0` and unbinds the framebuffer console from it |
+| `NervesSurfaceRtCell` | `start/0` and `stop/0`, imported into IEx |
+| `Visualization` | Supervises `Display`, `Touch` and `Orientation` while started |
 | `Display` | The screens' state machine, and the only process that draws |
 | `Touch` | Taps from the touchscreen, through [input_event](https://hex.pm/packages/input_event) |
 | `Orientation` | Polls the accelerometer (IIO `accel_3d`) and rotates the screen |
 | `Battery` | Battery status from `/sys/class/power_supply` |
 
-The IEx console on the built-in screen is hidden while the app draws. Use
-SSH (`ssh nerves.local`) for IEx.
+The IEx console on the built-in screen is hidden while the app draws. The
+keyboard still types into IEx, so typing `stop` (unseen) brings the console
+back. `NervesSurfaceRtCell.start()` and `.stop()` also work over SSH
+(`ssh nerves.local`).
 
 ## Getting started
 

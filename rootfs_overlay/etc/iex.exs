@@ -18,3 +18,7 @@ use Toolshed
 
 # battery() prints the battery level
 import NervesSurfaceRtCell.Battery, only: [battery: 0]
+
+# start() shows the cellular automata on the screen, stop() brings the
+# console back
+import NervesSurfaceRtCell, only: [start: 0, stop: 0]
