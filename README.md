@@ -58,20 +58,19 @@ and
 [INSTALLING.md](https://github.com/CoderDennis/nerves_system_surface_rt/blob/main/INSTALLING.md).
 
 Screen rotation needs the accelerometer driver (`CONFIG_HID_SENSOR_ACCEL_3D`),
-which isn't in a released system yet. Build against a local checkout of the
-system that has it:
+which the system has from v0.2.2 on. The app uses the released system from
+Hex, which comes with a prebuilt system artifact:
 
 ```sh
 export MIX_TARGET=surface_rt
-export SURFACE_RT_SYSTEM_PATH=../nerves_system_surface_rt
 mix deps.get
 mix firmware
 mix upload nerves.local
 ```
 
-The system is then built from source with Buildroot (in Docker on macOS).
-Without `SURFACE_RT_SYSTEM_PATH` the app uses the released system from Hex,
-and everything but rotation works.
+To try system changes before they're released, also set
+`SURFACE_RT_SYSTEM_PATH=../nerves_system_surface_rt` to a local checkout of
+the system. It's then built from source with Buildroot (in Docker on macOS).
 
 The Erlang and Elixir versions in `.tool-versions` must match the system's
 Erlang/OTP major version (29). Wi-Fi and SSH are set up as in

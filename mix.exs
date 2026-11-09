@@ -60,7 +60,7 @@ defmodule NervesSurfaceRtCell.MixProject do
   defp system_dep do
     case System.get_env("SURFACE_RT_SYSTEM_PATH") do
       nil ->
-        {:nerves_system_surface_rt, "~> 0.2.1", runtime: false, targets: :surface_rt}
+        {:nerves_system_surface_rt, "~> 0.2.2", runtime: false, targets: :surface_rt}
 
       path ->
         {:nerves_system_surface_rt,
